@@ -22,7 +22,7 @@
 
 // --- Dimensioni ---
 const larghezzaTela = 600;
-const altezzaTela = 600;
+const altezzaTela = 600; 
 
 // --- Geometria degli anelli ---
 const numeroAnelli = 60;         // quanti ovali concentrici
