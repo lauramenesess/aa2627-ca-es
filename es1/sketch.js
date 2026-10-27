@@ -20,17 +20,17 @@
 //
 // Parametri del disegno (modifica questi numeri per cambiare il risultato).
 
-const fuocoAx = 0.37;            // centro del lobo sinistro
+const fuocoAx = 0.30;            // centro del lobo sinistro
 const fuocoAy = 0.46;            // piu' in alto, per rompere la simmetria
-const fuocoBx = 0.63;            // centro del lobo destro
+const fuocoBx = 0.75;            // centro del lobo destro
 const fuocoBy = 0.54;            // piu' in basso, per rompere la simmetria
 
 const frequenzaAnelli = 38;      // quanti anelli concentrici per lobo
 const avvolgimento = 3;          // bracci della spirale: deve essere un numero
                                  // intero, altrimenti si vede una cucitura
-const velocitaScorrimento = 2.5; // quanto in fretta le scie scorrono con t
+const velocitaScorrimento = 2; // quanto in fretta le scie scorrono con t
 
-const scalaRumore = 25;           // grana del rumore: piccolo = macchie grandi
+const scalaRumore = 20;           // grana del rumore: piccolo = macchie grandi
 const velocitaRumore = 0.60;     // quanto in fretta cambia il rumore nel tempo
 const ampiezzaRumore = 6;      // quanto il rumore deforma gli anelli
 
@@ -46,10 +46,15 @@ function tixy(t, i, x, y) {
     // x = coordinata x da 0.0 a 1.0
     // y = coordinata y da 0.0 a 1.0
 
+    // I fuochi ondeggiano su e giù lentamente, spostando tutta la generazione con sé
+    let spostaY = sin(t * 0.12) * 0.25;
+    let fuocoAyOnda = fuocoAy + spostaY;
+    let fuocoByOnda = fuocoBy - spostaY * 0.4; // movimento leggermente sfasato per dare più onda
+
     let dxA = x - fuocoAx;
-    let dyA = y - fuocoAy;
+    let dyA = y - fuocoAyOnda;
     let dxB = x - fuocoBx;
-    let dyB = y - fuocoBy;
+    let dyB = y - fuocoByOnda;
 
     let dA = sqrt(dxA * dxA + dyA * dyA);   // distanza dal lobo sinistro
     let dB = sqrt(dxB * dxB + dyB * dyB);   // distanza dal lobo destro
