@@ -6,7 +6,10 @@ let ampiezzaRotazione;   // quanto si aprono i rami attorno al centro
 let torsione;            // rotazione extra a ogni livello, dà la spirale
 let hueBase, hueGamma;   // tinta di partenza e quanto sale a ogni livello
 let satBase, briBase;    // saturazione e luminosità di base
-let struttura;           // ampiezza del wobble del bordo (forme organiche)
+let ampiezzaForma;       // quanto il bordo devia dall'ellisse (forme organiche)
+let frequenzaForma;      // scala del rumore: valori bassi danno lobi grandi
+let spessoreMin, spessoreMax; // intervallo dello spessore del contorno, in pixel
+let alone;               // larghezza del bagliore attorno alla linea, in pixel
 let cR, cG, cB;          // colore RGB corrente da stampare sui pixel
 
 // FUNZIONE RICORSIVA
@@ -21,8 +24,8 @@ function disegnaElemento(x, y, s, angolo, livello) {
   cG = green(c);
   cB = blue(c);
 
-  // intensità che cala ai livelli profondi, per non bruciare i groppi
-  let forza = map(livello, 0, livelloMax, 1, 0.30);
+  // intensità che cala ai livelli profondi, ma resta alta per il bagliore neon
+  let forza = map(livello, 0, livelloMax, 1, 0.55);
   disegnaAmpolla(x, y, s, angolo, forza);
 
   // satellite: elementi minori ruotati e scalati attorno al corpo
@@ -46,10 +49,15 @@ function disegnaElemento(x, y, s, angolo, livello) {
   }
 }
 
-// Stampa su pixels[] un'ampolla soffusa con contorno ondulato:
-// il bulbo di Mandelbrot qui è un'ellisse con bordo perturbato da seni.
+// Stampa su pixels[] il contorno organico dell'elemento: il bordo è
+// un'ellisse il cui raggio varia con l'angolo seguendo il rumore di Perlin.
 function disegnaAmpolla(cx, cy, s, angolo, forza) {
   const R = s * 0.42;
+  // ogni elemento pesca il proprio spessore: alcune linee più spesse, altre più sottili
+  const spessore = random(spessoreMin, spessoreMax);
+  // ogni elemento entra nel rumore da un punto diverso: forme tutte diverse
+  const offX = random(1000);
+  const offY = random(1000);
   const cosA = cos(angolo);
   const sinA = sin(angolo);
   for (let dy = -R; dy <= R; dy++) {
@@ -59,19 +67,28 @@ function disegnaAmpolla(cx, cy, s, angolo, forza) {
       let ly = -dx * sinA + dy * cosA;
       // distanza normalizzata dall'ellisse (più stretta che larga)
       let dn = sqrt((lx * lx) / (R * R) + (ly * ly) / (R * R * 0.55));
-      // wobble: bordo organico, diverso a ogni scala
-      dn += struttura * (sin(lx * 0.13) + cos(ly * 0.17));
-      if (dn < 1) {
-        plotta(cx + dx, cy + dy, forza * pow(1 - dn, 2.2));
-      } else if (dn < 1 + 0.09) {
-        // alone sottile sul bordo, richiama i contorni dei frattali
-        plotta(cx + dx, cy + dy, forza * 0.5 * (1 - (dn - 1) / 0.09));
+      // bordo organico: il raggio dipende dall'angolo, in modo continuo
+      // e irregolare, come un profilo naturale
+      let theta = atan2(ly, lx);
+      let bordo =
+        1 +
+        ampiezzaForma *
+          (noise(cos(theta) * frequenzaForma + offX,
+                 sin(theta) * frequenzaForma + offY) -
+            0.5);
+      // nucleo della linea, poi un alone che sfuma: dà l'effetto neon
+      let distBordo = abs(dn - bordo) * R;
+      if (distBordo < spessore) {
+        plotta(cx + dx, cy + dy, forza * (1 - distBordo / spessore));
+      } else if (distBordo < spessore + alone) {
+        plotta(cx + dx, cy + dy, forza * 0.45 * (1 - (distBordo - spessore) / alone));
       }
     }
   }
 }
 
-// somma il colore corrente sul pixel: le sovrapposizioni diventano glow
+// somma il colore corrente sul pixel: è la somma additiva che fa
+// brillare il neon, e dove le linee si incrociano il bagliore cresce
 function plotta(px, py, inten) {
   px |= 0;
   py |= 0;
@@ -87,14 +104,18 @@ function plotta(px, py, inten) {
 function setupParametri() {
   livelloMax = int(random(4, 7)); // 4..6: oltre, l'esecuzione cresce troppo
   numRami = int(random(3, 5));    // 3 o 4 autochiamate
-  fattoreScala = random(0.55, 0.7);
+  fattoreScala = random(0.55, 0.75);
   ampiezzaRotazione = random(TWO_PI * 0.5, TWO_PI * 0.95);
   torsione = random(-0.6, 0.6);
   hueBase = random(360);
   hueGamma = random(60, 140);
-  satBase = random(75, 95);
-  briBase = random(70, 95);
-  struttura = random(0.05, 0.12);
+  satBase = 100;
+  briBase = random(90, 100);
+  ampiezzaForma = random(0.2, 0.45);
+  frequenzaForma = random(1.5, 3.5);
+  spessoreMin = random(1.5, 2.5);
+  spessoreMax = random(4, 6);
+  alone = random(5, 9);
   redraw();
 }
 
