@@ -1,109 +1,111 @@
-// PARAMETRI GENERALI E GLOBALI
-let livelloMax;          // numero massimo di ricorsioni
-let numRami;             // satellite generati a ogni livello
-let fattoreScala;        // scala dei figli rispetto al padre
-let ampiezzaRotazione;   // quanto si aprono i rami attorno al centro
-let torsione;            // rotazione extra a ogni livello, dà la spirale
-let hueBase, hueGamma;   // tinta di partenza e quanto sale a ogni livello
-let satBase, briBase;    // saturazione e luminosità di base
-let ampiezzaForma;       // quanto il bordo devia dall'ellisse (forme organiche)
-let frequenzaForma;      // scala del rumore: valori bassi danno lobi grandi
-let spessoreMin, spessoreMax; // intervallo dello spessore del contorno, in pixel
-let alone;               // larghezza del bagliore attorno alla linea, in pixel
-let cR, cG, cB;          // colore RGB corrente da stampare sui pixel
+// PARAMETRI GLOBALI
+let livelloMax, numRami, fattoreScala;
+let ampiezzaRotazione, torsione;
+let hueBase, hueGamma, satBase, briBase;
+let ampiezzaForma, frequenzaForma;
+let spessoreMin, spessoreMax, alone;
+let cR, cG, cB;
 
-// FUNZIONE RICORSIVA
-// Le coordinate sono in pixel assoluti: translate/rotate non agiscono
-// sull'array pixels, quindi ogni livello ruota i punti da sé.
 function disegnaElemento(x, y, s, angolo, livello) {
-  // colore della fiamma: varia con livello e angolo, come le mappe di fuga
-  let h = hueBase + (livello * hueGamma) / livelloMax + angolo * 25;
-  h = ((h % 360) + 360) % 360;
-  let c = color(h, satBase, briBase);
-  cR = red(c);
-  cG = green(c);
-  cB = blue(c);
+  const h = (((hueBase + (livello * hueGamma) / livelloMax + angolo * 20) % 360) + 360) % 360;
+  // Profondità: i livelli più vicini sono più luminosi, quelli lontani più scuri
+  const profondita = map(livello, 0, max(1, livelloMax - 1), 1, 0.45);
+  const bri = constrain(briBase * profondita, 15, 100);
+  const col = color(h, satBase, bri);
+  cR = red(col);
+  cG = green(col);
+  cB = blue(col);
 
-  // intensità che cala ai livelli profondi, ma resta alta per il bagliore neon
-  let forza = map(livello, 0, livelloMax, 1, 0.55);
-  disegnaAmpolla(x, y, s, angolo, forza);
+  const forza = map(livello, 0, livelloMax, 1, 0.55) * (0.65 + 0.35 * profondita);
+  const Rcorrente = s * 0.42;
+  disegnaAmpolla(x, y, s, angolo, forza, profondita);
 
-  // satellite: elementi minori ruotati e scalati attorno al corpo
-  let nuovoLivello = livello + 1;
-  if (nuovoLivello < livelloMax) {
+  if (livello + 1 < livelloMax) {
     for (let i = 0; i < numRami; i++) {
-      let angRamo =
-        angolo +
-        ampiezzaRotazione * ((i + 0.5) / numRami - 0.5) +
-        torsione * nuovoLivello;
-      let dist = s * fattoreScala * (1 + 0.25 * ((i + 0.5) / numRami - 0.5) * 2);
-      let sRamo = max(6, s * fattoreScala * (0.9 - livello * 0.08));
+      const offsetRamo = (i + 0.5) / numRami - 0.5;
+      const angRamo = angolo + ampiezzaRotazione * offsetRamo + torsione * (livello + 1);
+      const sRamo = max(6, s * fattoreScala * (0.9 - livello * 0.08));
+      const Rfiglio = sRamo * 0.42;
+
+      // Contatto continuo: la distanza segue la somma dei raggi con leggera sovrapposizione
+      const dist = (Rcorrente + Rfiglio) * 0.92;
+
       disegnaElemento(
         x + cos(angRamo) * dist,
         y + sin(angRamo) * dist,
         sRamo,
         angRamo,
-        nuovoLivello
+        livello + 1
       );
     }
   }
 }
 
-// Stampa su pixels[] il contorno organico dell'elemento: il bordo è
-// un'ellisse il cui raggio varia con l'angolo seguendo il rumore di Perlin.
-function disegnaAmpolla(cx, cy, s, angolo, forza) {
+function disegnaAmpolla(cx, cy, s, angolo, forza, profondita) {
   const R = s * 0.42;
-  // ogni elemento pesca il proprio spessore: alcune linee più spesse, altre più sottili
-  const spessore = random(spessoreMin, spessoreMax);
-  // ogni elemento entra nel rumore da un punto diverso: forme tutte diverse
+  const Rmax = ceil(R * (1 + 0.5 * ampiezzaForma) + alone);
+  const spessore = random(spessoreMin, spessoreMax) * (0.75 + 0.4 * profondita);
   const offX = random(1000);
   const offY = random(1000);
   const cosA = cos(angolo);
   const sinA = sin(angolo);
-  for (let dy = -R; dy <= R; dy++) {
-    for (let dx = -R; dx <= R; dx++) {
-      // punto riportato nel riferimento locale ruotato
-      let lx = dx * cosA + dy * sinA;
-      let ly = -dx * sinA + dy * cosA;
-      // distanza normalizzata dall'ellisse (più stretta che larga)
-      let dn = sqrt((lx * lx) / (R * R) + (ly * ly) / (R * R * 0.55));
-      // bordo organico: il raggio dipende dall'angolo, in modo continuo
-      // e irregolare, come un profilo naturale
-      let theta = atan2(ly, lx);
-      let bordo =
-        1 +
-        ampiezzaForma *
-          (noise(cos(theta) * frequenzaForma + offX,
-                 sin(theta) * frequenzaForma + offY) -
-            0.5);
-      // nucleo della linea, poi un alone che sfuma: dà l'effetto neon
-      let distBordo = abs(dn - bordo) * R;
+
+  // Direzione luce fissa (dall'alto a sinistra) per dare volume 3D
+  const lxLight = -0.6;
+  const lyLight = -0.8;
+
+  for (let dy = -Rmax; dy <= Rmax; dy++) {
+    for (let dx = -Rmax; dx <= Rmax; dx++) {
+      const lx = dx * cosA + dy * sinA;
+      const ly = -dx * sinA + dy * cosA;
+      const dn = sqrt((lx * lx) / (R * R) + (ly * ly) / (R * R * 0.55));
+      const theta = atan2(ly, lx);
+
+      const rumore = constrain(
+        noise(cos(theta) * frequenzaForma + offX, sin(theta) * frequenzaForma + offY),
+        0,
+        1
+      );
+      const bordo = 1 + ampiezzaForma * (rumore - 0.9);
+      const distBordo = abs(dn - bordo) * R;
+
+      // Shading 3D: bombatura interna + luce direzionale sul contorno
+      const bombatura = constrain(1 - dn / max(0.001, bordo), 0, 1);
+      const luce = constrain(
+        0.55 + 0.45 * ((dx / max(1, Rmax)) * lxLight + (dy / max(1, Rmax)) * lyLight),
+        0.2,
+        1.35
+      );
+
       if (distBordo < spessore) {
-        plotta(cx + dx, cy + dy, forza * (1 - distBordo / spessore));
+        const profilo = 1 - distBordo / spessore;
+        plotta(cx + dx, cy + dy, forza * profilo * luce);
       } else if (distBordo < spessore + alone) {
-        plotta(cx + dx, cy + dy, forza * 0.45 * (1 - (distBordo - spessore) / alone));
+        const sfumatura = 1 - (distBordo - spessore) / alone;
+        plotta(cx + dx, cy + dy, forza * 0.45 * sfumatura * (0.6 + 0.4 * luce));
+      } else if (dn < bordo) {
+        // Leggero riempimento interno sfumato per far percepire il volume dell'ampolla
+        plotta(cx + dx, cy + dy, forza * 0.12 * bombatura * luce);
       }
     }
   }
 }
 
-// somma il colore corrente sul pixel: è la somma additiva che fa
-// brillare il neon, e dove le linee si incrociano il bagliore cresce
 function plotta(px, py, inten) {
   px |= 0;
   py |= 0;
   if (px < 0 || py < 0 || px >= width || py >= height) return;
-  let i = 4 * (py * width + px);
+
+  const i = 4 * (py * width + px);
   pixels[i] = min(255, pixels[i] + cR * inten);
   pixels[i + 1] = min(255, pixels[i + 1] + cG * inten);
   pixels[i + 2] = min(255, pixels[i + 2] + cB * inten);
   pixels[i + 3] = 255;
 }
 
-// IMPOSTAZIONE PARAMETRI
 function setupParametri() {
-  livelloMax = int(random(4, 7)); // 4..6: oltre, l'esecuzione cresce troppo
-  numRami = int(random(3, 5));    // 3 o 4 autochiamate
+  livelloMax = int(random(4, 7));
+  numRami = int(random(3, 5));
   fattoreScala = random(0.55, 0.75);
   ampiezzaRotazione = random(TWO_PI * 0.5, TWO_PI * 0.95);
   torsione = random(-0.6, 0.6);
@@ -121,7 +123,7 @@ function setupParametri() {
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
-  pixelDensity(1); // pixels[] coincide con le coordinate del canvas
+  pixelDensity(1);
   noLoop();
   cursor(HAND);
   colorMode(HSB, 360, 100, 100, 1);
@@ -129,9 +131,8 @@ function setup() {
 }
 
 function draw() {
-  background(0, 0, 4); // blu notte quasi nero per far salire i glow
+  background(0, 0, 4);
   loadPixels();
-  // la ricorsione parte dal bulbo principale al centro
   disegnaElemento(width / 2, height / 2, min(width, height) * 0.5, 0, 0);
   updatePixels();
 }
