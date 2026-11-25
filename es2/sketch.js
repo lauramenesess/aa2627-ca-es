@@ -5,6 +5,7 @@ let hueBase, hueGamma, satBase, briBase;
 let ampiezzaForma, frequenzaForma;
 let spessoreMin, spessoreMax, alone;
 let cR, cG, cB;
+let tempo, velocitaNoise;
 
 function disegnaElemento(x, y, s, angolo, livello) {
   const h = (((hueBase + (livello * hueGamma) / livelloMax + angolo * 20) % 360) + 360) % 360;
@@ -28,7 +29,7 @@ function disegnaElemento(x, y, s, angolo, livello) {
       const Rfiglio = sRamo * 0.42;
 
       // Contatto continuo: la distanza segue la somma dei raggi con leggera sovrapposizione
-      const dist = (Rcorrente + Rfiglio) * 0.92;
+      const dist = (Rcorrente + Rfiglio) * 0.78;
 
       disegnaElemento(
         x + cos(angRamo) * dist,
@@ -44,9 +45,11 @@ function disegnaElemento(x, y, s, angolo, livello) {
 function disegnaAmpolla(cx, cy, s, angolo, forza, profondita) {
   const R = s * 0.42;
   const Rmax = ceil(R * (1 + 0.5 * ampiezzaForma) + alone);
+  // Spessore random a ogni frame: dà il tremolio
   const spessore = random(spessoreMin, spessoreMax) * (0.75 + 0.4 * profondita);
-  const offX = random(1000);
-  const offY = random(1000);
+  // Offset del noise legati alla posizione (stesso pattern per la stessa ampolla) e al tempo (scorrimento continuo)
+  const offX = cx * 0.013 + tempo;
+  const offY = cy * 0.013 - tempo * 0.6;
   const cosA = cos(angolo);
   const sinA = sin(angolo);
 
@@ -118,13 +121,16 @@ function setupParametri() {
   spessoreMin = random(1.5, 2.5);
   spessoreMax = random(4, 6);
   alone = random(5, 9);
+  // Progressione del noise più rapida
+  tempo = 0;
+  velocitaNoise = random(0.01, 0.03);
   redraw();
 }
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
   pixelDensity(1);
-  noLoop();
+  frameRate(20);
   cursor(HAND);
   colorMode(HSB, 360, 100, 100, 1);
   setupParametri();
@@ -135,6 +141,7 @@ function draw() {
   loadPixels();
   disegnaElemento(width / 2, height / 2, min(width, height) * 0.5, 0, 0);
   updatePixels();
+  tempo += velocitaNoise;
 }
 
 function mouseClicked() {
